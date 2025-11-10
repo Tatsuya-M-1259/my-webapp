@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIコンシェルジュプロトタイプ意見集約フォーム</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f4f7f6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .container {
+            max-width: 1000px; /* テーブルとボタンが増えたため幅を少し広げました */
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        form {
+            padding: 20px 0;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="radio"], select, textarea {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        input[type="radio"] {
+            width: auto;
+            margin-right: 5px;
+        }
+        .rating-group label {
+            display: inline-block;
+            margin-right: 15px;
+            font-weight: normal;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #download-btn {
+            background-color: #28a745;
+            margin-bottom: 20px;
+        }
+        #download-btn:hover {
+            background-color: #1e7e34;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>AIコンシェルジュプロトタイプ意見集約フォーム 📝</h1>
+
+    <form id="feedbackForm">
+        <label>評価点 (1: 最低 - 5: 最高)</label>
+        <div class="rating-group">
+            <label><input type="radio" name="rating" value="1" required> 1</label>
+            <label><input type="radio" name="rating" value="2"> 2</label>
+            <label><input type="radio" name="rating" value="3"> 3</label>
+            <label><input type="radio" name="rating" value="4"> 4</label>
+            <label><input type="radio" name="rating" value="5"> 5</label>
+        </div>
+
+        <label for="category">意見カテゴリ</label>
+        <select id="category" required>
+            <option value="">選択してください</option>
+            <option value="機能">機能</option>
+            <option value="UI">UI</option>
+            <option value="バグ">バグ</option>
+            <option value="その他">その他</option>
+        </select>
+
+        <label for="comment">コメント・詳細</label>
+        <textarea id="comment" required></textarea>
+
+        <button type="submit">意見を送信</button>
+    </form>
+
+    <h2>集約された意見一覧 📋</h2>
+    
+    <button id="download-btn">CSVでダウンロード</button>
+
+    <table id="feedbackTable">
+        <thead>
+            <tr>
+                <th>評価点</th>
+                <th>カテゴリ</th>
+                <th>コメント</th>
+                <th>登録日時</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+</div>
+
+<script>
+    const STORAGE_KEY = 'prototype_feedback_data';
+    const form = document.getElementById('feedbackForm');
+    const tableBody = document.querySelector('#feedbackTable tbody');
+    const downloadBtn = document.getElementById('download-btn');
+
+    // 1. データ取得（localStorageから）
+    function getFeedbackData() {
+        const json = localStorage.getItem(STORAGE_KEY);
+        // JSON文字列をパースし、データがなければ空の配列を返す
+        return json ? JSON.parse(json) : [];
+    }
+
+    // 2. データ保存（localStorageへ）
+    function saveFeedbackData(data) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    // 3. 意見の削除
+    function deleteFeedback(timestamp) {
+        if (!confirm('本当にこの意見を削除しますか？')) {
+            return;
+        }
+        
+        let data = getFeedbackData();
+        // タイムスタンプが一致しないデータだけを残す（削除する）
+        data = data.filter(item => item.timestamp !== timestamp);
+        saveFeedbackData(data);
+        renderFeedbackList(); // 削除後、テーブルを再描画
+    }
+
+    // 4. 一覧表示（テーブルを更新）
+    function renderFeedbackList() {
+        const data = getFeedbackData();
+        tableBody.innerHTML = ''; // テーブルの中身を一度クリア
+
+        if (data.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">まだ意見は登録されていません。</td></tr>';
+            return;
+        }
+
+        data.forEach(item => {
+            const row = tableBody.insertRow();
+            
+            // 評価点
+            row.insertCell().textContent = item.rating;
+            
+            // カテゴリ
+            row.insertCell().textContent = item.category;
+            
+            // コメント
+            row.insertCell().textContent = item.comment;
+            
+            // 登録日時
+            row.insertCell().textContent = item.timestamp;
+
+            // 削除ボタン
+            const deleteCell = row.insertCell();
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = '削除';
+            deleteButton.className = 'delete-btn';
+            // クリックイベントで deleteFeedback 関数を呼び出す
+            deleteButton.onclick = () => deleteFeedback(item.timestamp);
+            deleteCell.appendChild(deleteButton);
+        });
+    }
+
+    // 5. フォーム送信時の処理
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // フォームからのデータ取得
+        const ratingElement = document.querySelector('input[name="rating"]:checked');
+        if (!ratingElement) {
+             alert('評価点を選択してください。');
+             return;
+        }
+        const rating = ratingElement.value;
+        const category = document.getElementById('category').value;
+        const comment = document.getElementById('comment').value;
+        
+        if (!category) {
+             alert('意見カテゴリを選択してください。');
+             return;
+        }
+
+        // タイムスタンプはデータのユニークなIDとして使用
+        const timestamp = new Date().toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        // 新しい意見オブジェクト
+        const newFeedback = {
+            rating: rating,
+            category: category,
+            comment: comment.trim(),
+            // IDとしてタイムスタンプを使用
+            timestamp: timestamp
+        };
+
+        // 既存データを取得し、新しいデータを追加して保存
+        const existingData = getFeedbackData();
+        existingData.push(newFeedback);
+        saveFeedbackData(existingData);
+
+        // テーブルを更新
+        renderFeedbackList();
+
+        // フォームをリセット
+        form.reset();
+        alert('意見が登録されました！');
+    });
+
+    // 6. CSVダウンロード機能
+    downloadBtn.addEventListener('click', function() {
+        const data = getFeedbackData();
+        if (data.length === 0) {
+            alert('ダウンロードする意見がありません。');
+            return;
+        }
+
+        // CSVヘッダー（列名）
+        const header = ['評価点', 'カテゴリ', 'コメント', '登録日時'];
+        
+        // データをCSV形式の文字列に変換
+        let csvContent = header.join(',') + '\n';
+        
+        data.forEach(item => {
+            // コメント内の改行をスペースに置換し、ダブルクォーテーションをエスケープし、全体をダブルクォーテーションで囲む
+            const sanitizedComment = '"' + item.comment.replace(/\r?\n/g, ' ').replace(/"/g, '""') + '"';
+            
+            const row = [
+                item.rating,
+                item.category,
+                sanitizedComment,
+                item.timestamp
+            ];
+            csvContent += row.join(',') + '\n';
+        });
+
+        // CSVファイルを生成してダウンロード
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        // ファイル名
+        a.setAttribute('download', 'AIコンシェルジュ_意見集約データ_' + new Date().toISOString().slice(0, 10) + '.csv');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
+
+    // アプリ起動時にデータを読み込み、一覧を表示
+    document.addEventListener('DOMContentLoaded', renderFeedbackList);
+</script>
+
+</body>
+</html>
